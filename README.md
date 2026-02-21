@@ -17,7 +17,7 @@
 ### Testing
 To start your bot, open your command line and run `docker compose -f {PATH_TO_YOUR_DOCKER_COMPOSE} up -d`.  
 To stop it, run `docker compose -f {PATH_TO_YOUR_DOCKER_COMPOSE} down`.  
-Check that your bot is working by typing `brdg;help` (or use your custom prefix if you set one).  
+Check that your bot is working by typing `brdg;help` (or use your custom prefix if you set one). If you need to troubleshoot, run `docker logs bridgerbot` to see your logs.
 
 ## Installation from source (NodeJS)
 
