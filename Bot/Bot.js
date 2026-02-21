@@ -25,7 +25,6 @@ const discBot = new DClient({ intents: [GatewayIntentBits.GuildMembers, GatewayI
 fluxBot.once(FEvents.Ready, () => console.log(`Fluxer logged in as ${fluxBot.user.username}#${fluxBot.user.discriminator}`));
 
 fluxBot.on(FEvents.MessageCreate, async (msg) => {
-    const fluxGuild = await msg.guild ?? fluxBot.guilds.fetch(msg.guildId);
     if (msg.content.startsWith(PREFIX) && !msg.author.bot) {
         const stripped = msg.content.replace(PREFIX, "");
         const mem = await msg.guild.members.get(msg.author.id)
@@ -45,9 +44,10 @@ fluxBot.on(FEvents.MessageCreate, async (msg) => {
     const rawAttachments = await flux.get_flux_attachments(msg);
     if (msg.author.bot || (!msg.content && rawAttachments.size == 0)) {return};
     if (msg.channelId in bridges.Fluxer) {
-        const rawMsg = await flux.get_flux_content(msg, msg.referencedMessage)
         for(const ID of bridges.Fluxer[msg.channelId]) {
             const discChannel = await discBot.channels.fetch(ID);
+            const discGuild = await discBot.guilds.fetch(discChannel.guildId);
+            const rawMsg = await flux.get_flux_content(msg, msg.referencedMessage, discGuild)
             const guildHook = await disc.get_disc_hook(discBot, discChannel);
             guildHook.send({
                 username: msg.author.globalName,
@@ -83,14 +83,14 @@ discBot.on("messageCreate", async (msg) => {
     const rawAttachments = await disc.get_disc_attachments(msg);
     if (msg.author.bot || (!msg.content && rawAttachments.length == 0)) {return}
     if (msg.channelId in bridges.Discord) {
-        const discGuild = msg.guild;
         let replyTo;
         if (msg.reference) {
             replyTo = await msg.fetchReference();
         }
-        const rawContent = await disc.get_disc_content(msg, replyTo);
         for (const ID of bridges.Discord[msg.channelId]) {
             const fluxChannel = await fluxBot.channels.fetch(ID);
+            const fluxGuild = await fluxBot.guilds.fetch(fluxChannel.guildId)
+            const rawContent = await disc.get_disc_content(msg, replyTo, fluxGuild)
             const hook = await flux.get_flux_hook(fluxBot, fluxChannel);
             hook.send({
             username: msg.author.displayName,

@@ -14,9 +14,18 @@ export async function get_disc_hook(api, channel) {
 }
 
 // Reformatting the message to include info about pings and replies
-export async function get_disc_content(msg, ref) {
+export async function get_disc_content(msg, ref, guild) {
     let res = msg.content;
     const users = msg.mentions['users'];
+    const guildEmojis = await guild.fetchEmojis()
+    const msgEmojis = [...new Set(msg.content.match(/(?<=<:)\S+(?=:\d+>)/g))]
+    msgEmojis.map((e) => {
+        const emoji = guildEmojis.find((i) => i.name === e);
+        if (emoji) {
+            const rgx = new RegExp(`<:${emoji.name}:\\d+>`, 'g');
+            res = res.replaceAll(rgx, `<:${emoji.name}:${emoji.id}>`);
+        }
+    })
     users.map((user) => {
         res = res.replaceAll(`<@${user.id}>`, `\`@${user.displayName ?? user.username}\``)
     })
