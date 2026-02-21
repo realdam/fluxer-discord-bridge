@@ -19,7 +19,7 @@ To start your bot, open your command line and run `docker compose -f {PATH_TO_YO
 To stop it, run `docker compose -f {PATH_TO_YOUR_DOCKER_COMPOSE} down`.  
 Check that your bot is working by typing `brdg;help` (or use your custom prefix if you set one).  
 
-## Installation with NodeJS
+## Installation from source (NodeJS)
 
 ### Setup
 1. Download and install NodeJS from [their website](https://nodejs.org/en/download)
