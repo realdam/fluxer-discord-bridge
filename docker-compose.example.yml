@@ -1,10 +1,10 @@
- services:
+services:
   fluxer-discord-bridge:
-    image: rillabel/fluxer-discord-bridge:latest
-    working_dir: /Bot
+    build:
+      context: .
+    image: fluxer-discord-bridge:local
+    restart: unless-stopped
+    env_file:
+      - .env
     volumes:
-        - [PATH TO THE FOLDER WITH BRIDGES.YAML]:/Bot/db
-    environment:
-        - FLUXER_TOKEN=[YOUR FLUXER TOKEN]
-        - DISCORD_TOKEN=[YOUR DISCORD TOKEN]
-        - CMD_PREFIX=brdg;
+      - ./db:/app/Bot/db

@@ -1,12 +1,13 @@
 import { parse, stringify } from 'yaml'
-import { Client as FClient, Events as FEvents, Webhook, PermissionFlags } from '@fluxerjs/core'
-import { Client as DClient, Events as DEvents, GatewayIntentBits, PermissionsBitField} from 'discord.js'
+import { Client as FClient, PermissionFlags } from '@fluxerjs/core'
+import { Client as DClient, GatewayIntentBits, PermissionsBitField } from 'discord.js'
 import { readFile, writeFile } from 'fs/promises'
 import * as disc from './lib/disc_funcs.js'
 import * as flux from './lib/flux_funcs.js'
 import * as cmd from './lib/cmds.js'
 
 const PREFIX = process.env.CMD_PREFIX ?? 'brdg;'
+const BRIDGE_FILE = new URL('./db/Bridges.yaml', import.meta.url)
 if (!process.env.FLUXER_TOKEN || !process.env.DISCORD_TOKEN) {
     throw new Error("One or more tokens missing! Please set them in your environment variables.", {cause: 'MISSING_TOKENS'})
 }
@@ -15,50 +16,65 @@ const fluxBot = new FClient({ intents: 0 });
 const discBot = new DClient({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMessages]});
 
 let bridges;
+
+async function saveBridges() {
+    await writeFile(BRIDGE_FILE, stringify(bridges));
+}
+
 try {
-    const bridgefile = parse(await readFile('./db/Bridges.yaml', 'utf8'), {schema: 'failsafe'}); console.log(`Bridges loaded!`)
-    bridges = ('Discord' in bridgefile && 'Fluxer' in bridgefile)? bridgefile : {Discord: {}, Fluxer: {}};
-    writeFile('./db/Bridges.yaml', stringify(bridges));
+    const bridgefile = parse(await readFile(BRIDGE_FILE, 'utf8'), {schema: 'failsafe'});
+    console.log(`Bridges loaded!`)
+    const sanitized = cmd.sanitizeBridges(bridgefile);
+    bridges = sanitized.bridges;
+    if (sanitized.changed) {
+        console.warn('Removed invalid bridge entries from Bridges.yaml. Only numeric channel IDs are supported.');
+    }
+    await saveBridges();
 }
 catch {
-    console.log("Error finding './db/Bridges.yaml.\nAttempting to create one now");
+    console.log("Error finding './Bot/db/Bridges.yaml'.\nAttempting to create one now");
     bridges = {Discord: {}, Fluxer: {}};
-    writeFile('./db/Bridges.yaml', stringify(bridges))
+    await saveBridges()
 }
 
 fluxBot.once('ready', () => console.log(`Fluxer logged in as ${fluxBot.user.username}#${fluxBot.user.discriminator}`));
 
 fluxBot.on('messageCreate', async (msg) => {
-     if (msg.content.startsWith(PREFIX) && !msg.author.bot) {
+     if (msg.content?.startsWith(PREFIX) && !msg.author.bot) {
         const stripped = msg.content.replace(PREFIX, "");
         const mem = await msg.guild.members.get(msg.author.id)
-        const authed = mem.permissions.has(PermissionFlags.ManageChannels);
+        const authed = mem?.permissions?.has(PermissionFlags.ManageChannels) ?? false;
         let res = cmd.parse(authed, bridges, 'Fluxer', msg.channel.id, stripped);
         if (typeof res == 'object') {
             bridges = res;
-            writeFile('./db/Bridges.yaml', stringify(bridges))
-            msg.react('👍')
+            await saveBridges()
+            await msg.react('👍')
         }
         else {
             res = res.replaceAll("[PRFX]", PREFIX)
-            msg.channel.send(res)
+            await msg.channel.send(res)
         }
         return;
     }
     const rawAttachments = await flux.get_flux_attachments(msg);
-    if (msg.author.bot || (!msg.content && rawAttachments.size == 0)) {return};
+    if (msg.author.bot || (!msg.content && rawAttachments.length == 0)) {return};
     if (msg.channelId in bridges.Fluxer) {
-        for(const ID of bridges.Fluxer[msg.channelId]) {
-            const discChannel = await discBot.channels.fetch(ID);
-            const discGuild = await discBot.guilds.fetch(discChannel.guildId);
-            const rawMsg = await flux.get_flux_content(msg, msg.referencedMessage, discGuild)
-            const guildHook = await disc.get_disc_hook(discBot, discChannel);
-            guildHook.send({
-                username: msg.author.globalName,
-                avatarURL: `https://fluxerusercontent.com/avatars/${msg.author.id}/${msg.author.avatar}.webp`,
-                content: rawMsg,
-                files: rawAttachments
-            })
+        for (const ID of bridges.Fluxer[msg.channelId]) {
+            try {
+                const discChannel = await discBot.channels.fetch(ID);
+                const discGuild = await discBot.guilds.fetch(discChannel.guildId);
+                const rawMsg = await flux.get_flux_content(msg, msg.referencedMessage, discGuild)
+                const guildHook = await disc.get_disc_hook(discBot, discChannel);
+                await guildHook.send({
+                    username: msg.author.globalName,
+                    avatarURL: `https://fluxerusercontent.com/avatars/${msg.author.id}/${msg.author.avatar}.webp`,
+                    content: rawMsg,
+                    files: rawAttachments
+                })
+            }
+            catch (e) {
+                console.error(`Failed to bridge Fluxer channel ${msg.channelId} to Discord channel ${ID}:`, e.message);
+            }
         }
     }
 })
@@ -68,18 +84,18 @@ fluxBot.on('messageCreate', async (msg) => {
 discBot.once('clientReady', (data) => console.log(`Discord logged in as ${data.user.tag}!`));
 
 discBot.on('messageCreate', async (msg) => {
-    if (msg.content.startsWith(PREFIX) && !msg.author.bot) {
+    if (msg.content?.startsWith(PREFIX) && !msg.author.bot) {
         const stripped = msg.content.replace(PREFIX, "");
-        const authed = msg.member.permissions.has(PermissionsBitField.Flags.ManageChannels);
+        const authed = msg.member?.permissions?.has(PermissionsBitField.Flags.ManageChannels) ?? false;
         let res = cmd.parse(authed, bridges, 'Discord', msg.channel.id, stripped);
         if (typeof res == 'object') {
             bridges = res;
-            writeFile('./db/Bridges.yaml', stringify(bridges))
-            msg.react('👍')
+            await saveBridges()
+            await msg.react('👍')
         }
         else {
             res = res.replaceAll("[PRFX]", PREFIX)
-            msg.channel.send(res);
+            await msg.channel.send(res);
         }
 
         return;
@@ -92,16 +108,21 @@ discBot.on('messageCreate', async (msg) => {
             replyTo = await msg.fetchReference();
         }
         for (const ID of bridges.Discord[msg.channelId]) {
-            const fluxChannel = await fluxBot.channels.fetch(ID);
-            const fluxGuild = await fluxBot.guilds.fetch(fluxChannel.guildId)
-            const rawContent = await disc.get_disc_content(msg, replyTo, fluxGuild)
-            const hook = await flux.get_flux_hook(fluxBot, fluxChannel);
-            hook.send({
-            username: msg.author.displayName,
-            content: rawContent,
-            avatar_url: `https://cdn.discordapp.com/avatars/${msg.author.id}/${msg.author.avatar}`,
-            files: rawAttachments
-            })
+            try {
+                const fluxChannel = await fluxBot.channels.fetch(ID);
+                const fluxGuild = await fluxBot.guilds.fetch(fluxChannel.guildId)
+                const rawContent = await disc.get_disc_content(msg, replyTo, fluxGuild)
+                const hook = await flux.get_flux_hook(fluxBot, fluxChannel);
+                await hook.send({
+                    username: msg.author.displayName,
+                    content: rawContent,
+                    avatar_url: `https://cdn.discordapp.com/avatars/${msg.author.id}/${msg.author.avatar}`,
+                    files: rawAttachments
+                })
+            }
+            catch (e) {
+                console.error(`Failed to bridge Discord channel ${msg.channelId} to Fluxer channel ${ID}:`, e.message);
+            }
         }
     }
 })
@@ -137,6 +158,3 @@ process.on('uncaughtException', async (e) => {
         setTimeout(() => {reset(0)}, 5000)
     }
 })
-
-
-
