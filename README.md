@@ -16,6 +16,8 @@ Docker Desktop is not required. A normal Docker Engine install with the Compose 
 4. Create a writable data directory with `mkdir -p db`.
 5. Copy `docker-compose.example.yml` to `docker-compose.yml` if you want to keep local edits out of git.
 
+**NOTE:** if running on a system with SELinux enbaled, make sure to add `:Z` as a suffix to any volumes defined in `docker-compose-yml`!
+
 ### Testing
 
 To build and start your bot from the repo root, run `docker compose up -d --build`.  
