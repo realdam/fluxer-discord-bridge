@@ -2,6 +2,7 @@ import { parse, stringify } from 'yaml'
 import { Client as FClient, PermissionFlags } from '@fluxerjs/core'
 import { Client as DClient, GatewayIntentBits, PermissionsBitField } from 'discord.js'
 import { readFile, writeFile } from 'fs/promises'
+import WebSocket from 'ws'
 import * as disc from './lib/disc_funcs.js'
 import * as flux from './lib/flux_funcs.js'
 import * as cmd from './lib/cmds.js'
@@ -12,7 +13,7 @@ if (!process.env.FLUXER_TOKEN || !process.env.DISCORD_TOKEN) {
     throw new Error("One or more tokens missing! Please set them in your environment variables.", {cause: 'MISSING_TOKENS'})
 }
 
-const fluxBot = new FClient({ intents: 0 });
+const fluxBot = new FClient({ intents: 0, WebSocket });
 const discBot = new DClient({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMessages]});
 
 let bridges;
@@ -38,6 +39,7 @@ catch {
 }
 
 fluxBot.once('ready', () => console.log(`Fluxer logged in as ${fluxBot.user.username}#${fluxBot.user.discriminator}`));
+fluxBot.on('error', (e) => console.error('Fluxer client error:', e?.message ?? e));
 
 fluxBot.on('messageCreate', async (msg) => {
      if (msg.content?.startsWith(PREFIX) && !msg.author.bot) {
@@ -127,8 +129,12 @@ discBot.on('messageCreate', async (msg) => {
     }
 })
 
-discBot.login(process.env.DISCORD_TOKEN);
-fluxBot.login(process.env.FLUXER_TOKEN);
+discBot.login(process.env.DISCORD_TOKEN).catch((e) => {
+    console.error('Discord login failed:', e.message);
+});
+fluxBot.login(process.env.FLUXER_TOKEN).catch((e) => {
+    console.error('Fluxer login failed:', e.message);
+});
 
 // ERROR HANDLING DIVIDER FOR RILLABEL EASIER READING
 
