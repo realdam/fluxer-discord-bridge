@@ -29,7 +29,7 @@ Check that your bot is working by typing `brdg;help` (or use your custom prefix 
 ### Setup
 
 1. Download and install NodeJS from [their website](https://nodejs.org/en/download).
-2. Download and extract the most recent source code from the [Releases page](https://github.com/rillabel/fluxer-discord-bridge/releases). Note the path to your folder.
+2. Download and extract the most recent source code from the [Releases page](https://github.com/realdam/fluxer-discord-bridge/releases). Note the path to your folder.
 3. Copy `Bot/example.env` to `.env`. Fill in `.env` with your Fluxer and Discord bot tokens. Feel free to set a custom command prefix while you're here.
 
 ### Testing
